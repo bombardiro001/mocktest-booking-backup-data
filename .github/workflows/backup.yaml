@@ -50,14 +50,23 @@ jobs:
             -f prisma/backups/data.sql \
             --data-only --use-copy
           # Strip COPY blocks for tables containing OAuth tokens.
-          # The -x CLI flag doesn't handle mixed-case quoted identifiers reliably,
-          # so we post-process the dump with awk instead.
-          awk '
-            /^COPY public\."Account"/ || /^COPY public\."Session"/ { skip=1; next }
-            skip && $0 == "\\." { skip=0; next }
-            !skip { print }
-          ' prisma/backups/data.sql > /tmp/data_clean.sql
-          mv /tmp/data_clean.sql prisma/backups/data.sql
+          # Uses Python string matching so it works regardless of whether
+          # pg_dump includes the schema prefix in the COPY statement.
+          python3 << 'PYEOF'
+          lines = open('prisma/backups/data.sql').readlines()
+          out = []
+          skip = False
+          for line in lines:
+              if not skip and 'FROM stdin' in line and ('"Account"' in line or '"Session"' in line):
+                  skip = True
+                  continue
+              if skip:
+                  if line.strip() == '\\.':
+                      skip = False
+                  continue
+              out.append(line)
+          open('prisma/backups/data.sql', 'w').writelines(out)
+          PYEOF
 
       - name: Commit and push backups
         if: env.BACKUP_ENABLED == 'true'
