@@ -49,24 +49,15 @@ jobs:
           supabase db dump --db-url "$SUPABASE_DB_URL" \
             -f prisma/backups/data.sql \
             --data-only --use-copy
-          # Strip COPY blocks for tables containing OAuth tokens.
-          # Uses Python string matching so it works regardless of whether
-          # pg_dump includes the schema prefix in the COPY statement.
-          python3 << 'PYEOF'
-          lines = open('prisma/backups/data.sql').readlines()
-          out = []
-          skip = False
-          for line in lines:
-              if not skip and 'FROM stdin' in line and ('"Account"' in line or '"Session"' in line):
-                  skip = True
-                  continue
-              if skip:
-                  if line.strip() == '\\.':
-                      skip = False
-                  continue
-              out.append(line)
-          open('prisma/backups/data.sql', 'w').writelines(out)
-          PYEOF
+          echo ">>> COPY statements found in dump:" >&2
+          grep 'FROM stdin' prisma/backups/data.sql >&2 || true
+          sed -e '/^COPY .*"Account".*FROM stdin/,/^\\.$/d' \
+              -e '/^COPY .*"Session".*FROM stdin/,/^\\.$/d' \
+              -e '/^COPY .*"VerificationToken".*FROM stdin/,/^\\.$/d' \
+              prisma/backups/data.sql > /tmp/data_clean.sql
+          mv /tmp/data_clean.sql prisma/backups/data.sql
+          echo ">>> COPY statements remaining after strip:" >&2
+          grep 'FROM stdin' prisma/backups/data.sql >&2 || true
 
       - name: Commit and push backups
         if: env.BACKUP_ENABLED == 'true'
