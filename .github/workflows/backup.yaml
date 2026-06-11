@@ -49,8 +49,8 @@ jobs:
           supabase db dump --db-url "$SUPABASE_DB_URL" \
             -f prisma/backups/data.sql \
             --data-only --use-copy \
-            -x 'public."Account"' \
-            -x 'public."Session"'
+            -x 'public.Account' \
+            -x 'public.Session'
 
       - name: Commit and push backups
         if: env.BACKUP_ENABLED == 'true'
