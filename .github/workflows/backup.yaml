@@ -48,9 +48,16 @@ jobs:
         run: |
           supabase db dump --db-url "$SUPABASE_DB_URL" \
             -f prisma/backups/data.sql \
-            --data-only --use-copy \
-            -x 'public.Account' \
-            -x 'public.Session'
+            --data-only --use-copy
+          # Strip COPY blocks for tables containing OAuth tokens.
+          # The -x CLI flag doesn't handle mixed-case quoted identifiers reliably,
+          # so we post-process the dump with awk instead.
+          awk '
+            /^COPY public\."Account"/ || /^COPY public\."Session"/ { skip=1; next }
+            skip && $0 == "\\." { skip=0; next }
+            !skip { print }
+          ' prisma/backups/data.sql > /tmp/data_clean.sql
+          mv /tmp/data_clean.sql prisma/backups/data.sql
 
       - name: Commit and push backups
         if: env.BACKUP_ENABLED == 'true'
