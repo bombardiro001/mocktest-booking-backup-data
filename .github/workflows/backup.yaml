@@ -1,16 +1,9 @@
 name: supabase-backup
 
 on:
-  push:
-    branches: [main, dev]
-  pull_request:
-    branches: [main, dev]
-  workflow_dispatch:
+  workflow_dispatch: # Manual trigger from the Actions tab
   schedule:
-    - cron: "0 0 * * *" # Runs every day at midnight
-
-env:
-  BACKUP_ENABLED: true
+    - cron: "0 0 * * *" # Runs every day at midnight UTC
 
 jobs:
   run_db_backup:
@@ -38,7 +31,7 @@ jobs:
         with:
           version: latest
 
-      - name: Create timestamp folder
+      - name: Create backups folder
         if: env.BACKUP_ENABLED == 'true'
         run: mkdir -p prisma/backups
 
@@ -50,9 +43,14 @@ jobs:
         if: env.BACKUP_ENABLED == 'true'
         run: supabase db dump --db-url "$SUPABASE_DB_URL" -f prisma/backups/schema.sql
 
-      - name: Backup data
+      - name: Backup data (excluding tables with OAuth tokens)
         if: env.BACKUP_ENABLED == 'true'
-        run: supabase db dump --db-url "$SUPABASE_DB_URL" -f prisma/backups/data.sql --data-only --use-copy
+        run: |
+          supabase db dump --db-url "$SUPABASE_DB_URL" \
+            -f prisma/backups/data.sql \
+            --data-only --use-copy \
+            -x 'public."Account"' \
+            -x 'public."Session"'
 
       - name: Commit backups
         if: env.BACKUP_ENABLED == 'true'
