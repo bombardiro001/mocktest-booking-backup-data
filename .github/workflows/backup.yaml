@@ -52,12 +52,16 @@ jobs:
             -x 'public."Account"' \
             -x 'public."Session"'
 
-      - name: Pull latest changes before committing
+      - name: Commit and push backups
         if: env.BACKUP_ENABLED == 'true'
-        run: git pull --rebase origin main
-
-      - name: Commit backups
-        if: env.BACKUP_ENABLED == 'true'
-        uses: stefanzweifel/git-auto-commit-action@v4
-        with:
-          commit_message: Supabase backup
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git pull --rebase origin main
+          git add prisma/backups/
+          if git diff --staged --quiet; then
+            echo "No changes to commit"
+          else
+            git commit -m "Supabase backup"
+            git push origin main
+          fi
